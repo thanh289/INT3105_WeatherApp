@@ -80,7 +80,12 @@ class WeatherController {
       } else {
         //Now fetching weather information from OpenWeather based on CITY
         console.log(`[API] Fetching weather for city "${city}" from OpenWeather API...`);
-        const response = await this.weatherService.getDataFromOpenWeatherAPI(city);
+        const response = await this.weatherService.getWeatherFromAPI(city);
+
+        // Check fallback
+        if (response.message) {
+          return res.status(503).send({ message: response.message, payload: response });
+        }
 
         //Extracting data from the response
         const country: string = response.sys.country;

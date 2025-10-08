@@ -1,10 +1,90 @@
 import { Weather, IWeather } from "../schemas/weatherModel";
 import axios from "axios";
+import CircuitBreaker from "opossum";
 import moment from "moment";
 import { config } from "dotenv";
 config();
 
+
+
 class WeatherService {
+
+  private openWeatherBreaker: CircuitBreaker;
+  constructor() {
+
+    // config for CB
+    const options = {
+      timeout: 20000,                 // request > ?s -> fail
+      errorThresholdPercentage: 50,   // 50% request fail -> CB open
+      resetTimeout: 30000,            // after 30s -> half-open
+      rollingCountTimeout: 30000,     // time for window = 30s,
+      volumeThreshold: 2,             // minium request need to evaluate
+    };
+
+
+    this.openWeatherBreaker = new CircuitBreaker(this.fetchWithRetry.bind(this), options);
+
+    this.openWeatherBreaker.fallback(async (city: string) => {
+      console.warn(`[CB] Fallback triggered for city "${city}"`);
+      return {
+        forecast: {
+          type: null,
+          temp: null,
+          minTemp: null,
+          maxTemp: null,
+          pressure: null,
+          humidity: null,
+          sunrise: null,
+          sunset: null,
+          wind: { speed: null, deg: null },
+        },
+        coord: { lon: null, lat: null },
+        city,
+        country: null,
+        dt: moment().format("YYYY-MM-DD"),
+        message: "Weather API temporarily unavailable",
+      };
+    });
+
+    this.openWeatherBreaker.on("open", () => console.warn("[CB] Circuit opened!"));
+    this.openWeatherBreaker.on("halfOpen", () => console.info("[CB] Circuit half-open, test API"));
+    this.openWeatherBreaker.on("close", () => console.info("[CB] Circuit closed, API OK"));
+  }
+
+  public getDataFromOpenWeatherAPI = async (city: string): Promise<any> => {
+    const base_url: string =
+      process.env.WEATHER_API +
+      `?q=${city}` +
+      "&units=metric&appid=" +
+      `${process.env.APP_ID}`;
+
+    const res = await axios.get(base_url);
+    return res.data;
+  };
+
+  // Manual retry
+  public fetchWithRetry = async (city: string, retries = 3, delay = 1000) => {
+    for (let i = 1; i <= retries; i++) {
+      try {
+        console.log(`[Retry] Attempt ${i} for city "${city}"`);
+        return await this.getDataFromOpenWeatherAPI(city);
+      } catch (err: any) {
+        console.warn(`[Retry] Attempt ${i} failed: ${err.message}`);
+        if (i === retries) throw err;
+        await new Promise((r) => setTimeout(r, delay * i));
+      }
+    }
+  };
+
+  public getWeatherFromAPI = async (city: string): Promise<any> => {
+    try {
+      return await this.openWeatherBreaker.fire(city);
+    } catch (err) {
+      console.error("[CB] API call failed:", err.message);
+      throw new Error("OpenWeather API not available currently. Please try again later.");
+    }
+  };
+
   /**
    *
    * @param dt
@@ -86,17 +166,7 @@ class WeatherService {
     return Weather.create(payload);
   };
 
-  public getDataFromOpenWeatherAPI = async (city: any): Promise<any> => {
-    const base_url: string =
-      process.env.WEATHER_API +
-      `?q=${city}` +
-      "&units=metric&appid=" +    // celsius degre
-      `${process.env.APP_ID}`;
-
-    const res = await axios.get(base_url);
-    const { data } = res;
-    return data;
-  };
+  
 }
 
 export { WeatherService };
