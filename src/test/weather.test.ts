@@ -6,6 +6,9 @@ import { describe } from "mocha";
 const should = chai.should();
 chai.use(chaiHttp);
 
+/**
+ *  CHECK WRONG ROUTE
+ */
 describe("WEATHER REST API - Integration tests", () => {
   describe("GET /random-url", () => {
     it("it should return 404", (done) => {
@@ -20,7 +23,7 @@ describe("WEATHER REST API - Integration tests", () => {
   });
 
   /**
-   *  GET ALL THE TEMPRATURES
+   *  GET ALL
    */
 
   describe("GET /api/v1/vopak", () => {
@@ -36,10 +39,10 @@ describe("WEATHER REST API - Integration tests", () => {
     });
   });
 
-  /**
-   *  GET TEMPRATURE OF A SPECIFIC CITY
-   */
 
+  /**
+   *  GET A SPECIFIC CITY
+   */
   describe("GET /api/v1/vopak/weathers", () => {
     const city: string = "Rotterdam";
     it("it should GET temprature of Rotterdam", (done) => {
@@ -57,7 +60,6 @@ describe("WEATHER REST API - Integration tests", () => {
   /**
    * GET THE AVERAGE TEMPRATURE OF A SPECIFIC CITY
    */
-
   describe("GET /api/v1/vopak/weathers", () => {
     const city: string = "Rotterdam";
     const year: number = 2021;
