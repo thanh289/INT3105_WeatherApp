@@ -20,6 +20,17 @@ To run this application, you have to set your own MongoDB Atlas connection strin
 
 > npm install
 
+> create .env file and use the following format:
+    PORT = 5000
+    MONGO_URI = ...
+    REDIS_PORT = 6379
+    REDIS_HOST = localhost
+    REDIS_CACHE_TIMEOUT  = 120
+    NODE_ENV=Developement
+    WEATHER_API = http://api.openweathermap.org/data/2.5/weather
+    APP_ID = ...
+
+
 > npm run dev  -> open localhost:5000 in browser
 To demo for circuit breaker, use the checkbox
 
