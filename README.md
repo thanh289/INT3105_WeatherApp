@@ -20,9 +20,6 @@ To run this application, you have to set your own MongoDB Atlas connection strin
 
 > npm install
 
-> npm run dev
-
-> npm run test
-
-> npm run build - for production
+> npm run dev  -> open localhost:5000 in browser
+To demo for circuit breaker, use the checkbox
 
