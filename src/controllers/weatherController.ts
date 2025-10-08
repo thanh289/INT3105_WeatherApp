@@ -70,6 +70,7 @@ class WeatherController {
         return res.status(400).send({ message: "City is required and must be a string" });
       }
       const city: string = req.query.city.trim().toLowerCase();
+      const demoFail = req.query.demoFail === "true";
 
       //first going to check whether data is already exists or not
       const isExists = await this.weatherService.getWeather(this.dt, city);
@@ -80,7 +81,7 @@ class WeatherController {
       } else {
         //Now fetching weather information from OpenWeather based on CITY
         console.log(`[API] Fetching weather for city "${city}" from OpenWeather API...`);
-        const response = await this.weatherService.getWeatherFromAPI(city);
+        const response = await this.weatherService.getWeatherFromAPI(city, demoFail);
 
         // Check fallback
         if (response.message) {

@@ -63,22 +63,25 @@ class WeatherService {
   };
 
   // Manual retry
-  public fetchWithRetry = async (city: string, retries = 3, delay = 1000) => {
+  public fetchWithRetry = async (city: string, demoFail?: boolean, retries = 3) => {
     for (let i = 1; i <= retries; i++) {
       try {
         console.log(`[Retry] Attempt ${i} for city "${city}"`);
+        if (demoFail) {
+          throw new Error(`[Demo] Simulating API failure on attempt ${i} for city "${city}"`);
+        }
         return await this.getDataFromOpenWeatherAPI(city);
       } catch (err: any) {
         console.warn(`[Retry] Attempt ${i} failed: ${err.message}`);
         if (i === retries) throw err;
-        await new Promise((r) => setTimeout(r, delay * i));
+        await new Promise((r) => setTimeout(r, 1000 * i));
       }
     }
   };
 
-  public getWeatherFromAPI = async (city: string): Promise<any> => {
+  public getWeatherFromAPI = async (city: string, demoFail?: boolean): Promise<any> => {
     try {
-      return await this.openWeatherBreaker.fire(city);
+      return await this.openWeatherBreaker.fire(city, demoFail);
     } catch (err) {
       console.error("[CB] API call failed:", err.message);
       throw new Error("OpenWeather API not available currently. Please try again later.");

@@ -18,7 +18,8 @@ async function getWeathers() {
 
 async function getWeatherByCity() {
   const city = document.getElementById("cityName").value;
-  const res = await fetch(`${baseUrl}/weathers?city=${city}`);
+  const demoCB = document.getElementById("demoCB").checked;
+  const res = await fetch(`${baseUrl}/weathers?city=${city}${demoCB ? "&demoFail=true" : ""}`);
   const data = await res.json();
   document.getElementById("cityWeather").textContent = JSON.stringify(data, null, 2);
 }
