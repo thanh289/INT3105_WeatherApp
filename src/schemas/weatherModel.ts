@@ -64,8 +64,7 @@ const WeatherSchema: Schema = new Schema(
 )
 
 // each document of Weather wil have type IWeather
-export const Weather: Model<IWeather> = model("Weather", WeatherSchema)
-
+export const Weather = model<IWeather>("Weather", WeatherSchema)
 
 // Interface - only exist in TypeScript, just for typecheck, not really effect MongoDB        (IForecast..)
 // Schema    - Define the structure of a document in MongoDB, we can use nested object        (WeatherSchema)

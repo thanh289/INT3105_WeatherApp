@@ -16,7 +16,7 @@ class WeatherService {
     const options = {
       timeout: 20000,                 // request > ?s -> fail
       errorThresholdPercentage: 50,   // 50% request fail -> CB open
-      resetTimeout: 30000,            // after 30s -> half-open
+      resetTimeout: 10000,            // after 10s (for demo) -> half-open
       rollingCountTimeout: 30000,     // time for window = 30s,
       volumeThreshold: 2,             // minium request need to evaluate
     }
@@ -109,7 +109,7 @@ class WeatherService {
       // Weather.countDocuments().exec(),
       Weather.countDocuments({ dt }).exec(),
     ]
-    
+
     // all promises in array run parallel, return when all done
     return await Promise.all(promises)
   };
@@ -169,7 +169,7 @@ class WeatherService {
     return Weather.create(payload)
   };
 
-  
+
 }
 
 export { WeatherService }
