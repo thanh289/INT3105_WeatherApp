@@ -1,9 +1,9 @@
-import { Weather, IWeather } from "../schemas/weatherModel";
-import axios from "axios";
-import CircuitBreaker from "opossum";
-import moment from "moment";
-import { config } from "dotenv";
-config();
+import { Weather, IWeather } from "../schemas/weatherModel"
+import axios from "axios"
+import CircuitBreaker from "opossum"
+import moment from "moment"
+import { config } from "dotenv"
+config()
 
 
 
@@ -19,13 +19,13 @@ class WeatherService {
       resetTimeout: 30000,            // after 30s -> half-open
       rollingCountTimeout: 30000,     // time for window = 30s,
       volumeThreshold: 2,             // minium request need to evaluate
-    };
+    }
 
 
-    this.openWeatherBreaker = new CircuitBreaker(this.fetchWithRetry.bind(this), options);
+    this.openWeatherBreaker = new CircuitBreaker(this.fetchWithRetry.bind(this), options)
 
     this.openWeatherBreaker.fallback(async (city: string) => {
-      console.warn(`[CB] Fallback triggered for city "${city}"`);
+      console.warn(`[CB] Fallback triggered for city "${city}"`)
       return {
         forecast: {
           type: null,
@@ -43,12 +43,12 @@ class WeatherService {
         country: null,
         dt: moment().format("YYYY-MM-DD"),
         message: "Weather API temporarily unavailable",
-      };
-    });
+      }
+    })
 
-    this.openWeatherBreaker.on("open", () => console.warn("[CB] Circuit opened!"));
-    this.openWeatherBreaker.on("halfOpen", () => console.info("[CB] Circuit half-open, test API"));
-    this.openWeatherBreaker.on("close", () => console.info("[CB] Circuit closed, API OK"));
+    this.openWeatherBreaker.on("open", () => console.warn("[CB] Circuit opened!"))
+    this.openWeatherBreaker.on("halfOpen", () => console.info("[CB] Circuit half-open, test API"))
+    this.openWeatherBreaker.on("close", () => console.info("[CB] Circuit closed, API OK"))
   }
 
   public getDataFromOpenWeatherAPI = async (city: string): Promise<any> => {
@@ -56,35 +56,35 @@ class WeatherService {
       process.env.WEATHER_API +
       `?q=${city}` +
       "&units=metric&appid=" +
-      `${process.env.APP_ID}`;
+      `${process.env.APP_ID}`
 
-    const res = await axios.get(base_url);
-    return res.data;
+    const res = await axios.get(base_url)
+    return res.data
   };
 
   // Manual retry
   public fetchWithRetry = async (city: string, demoFail?: boolean, retries = 3) => {
     for (let i = 1; i <= retries; i++) {
       try {
-        console.log(`[Retry] Attempt ${i} for city "${city}"`);
+        console.log(`[Retry] Attempt ${i} for city "${city}"`)
         if (demoFail) {
-          throw new Error(`[Demo] Simulating API failure on attempt ${i} for city "${city}"`);
+          throw new Error(`[Demo] Simulating API failure on attempt ${i} for city "${city}"`)
         }
-        return await this.getDataFromOpenWeatherAPI(city);
+        return await this.getDataFromOpenWeatherAPI(city)
       } catch (err: any) {
-        console.warn(`[Retry] Attempt ${i} failed: ${err.message}`);
-        if (i === retries) throw err;
-        await new Promise((r) => setTimeout(r, 1000 * i));
+        console.warn(`[Retry] Attempt ${i} failed: ${err.message}`)
+        if (i === retries) throw err
+        await new Promise((r) => setTimeout(r, 1000 * i))
       }
     }
   };
 
   public getWeatherFromAPI = async (city: string, demoFail?: boolean): Promise<any> => {
     try {
-      return await this.openWeatherBreaker.fire(city, demoFail);
+      return await this.openWeatherBreaker.fire(city, demoFail)
     } catch (err) {
-      console.error("[CB] API call failed:", err.message);
-      throw new Error("OpenWeather API not available currently. Please try again later.");
+      console.error("[CB] API call failed:", err.message)
+      throw new Error("OpenWeather API not available currently. Please try again later.")
     }
   };
 
@@ -108,10 +108,10 @@ class WeatherService {
         .exec(),
       // Weather.countDocuments().exec(),
       Weather.countDocuments({ dt }).exec(),
-    ];
+    ]
     
     // all promises in array run parallel, return when all done
-    return await Promise.all(promises);
+    return await Promise.all(promises)
   };
 
   /**
@@ -125,7 +125,7 @@ class WeatherService {
       // string contain 'city', i for ignore case (upper or lower)
       city: { $regex: city, $options: "i" },
       dt,
-    }).exec();  // query and return Promise
+    }).exec()  // query and return Promise
 
   };
 
@@ -157,7 +157,7 @@ class WeatherService {
           avgTemp: { $avg: "$forecast.temp" },
         },
       },
-    ]);
+    ])
   };
 
   /**
@@ -166,10 +166,10 @@ class WeatherService {
    * @returns
    */
   public createWeather = async (payload: any): Promise<IWeather> => {
-    return Weather.create(payload);
+    return Weather.create(payload)
   };
 
   
 }
 
-export { WeatherService };
+export { WeatherService }

@@ -5,16 +5,24 @@
     "plugin:@typescript-eslint/recommended"
   ],
   "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint"],
-  "env": { "node": true },
+  "plugins": [
+    "@typescript-eslint"
+  ],
+  "env": {
+    "node": true
+  },
   "parserOptions": {
     "ecmaVersion": 5,
     "sourceType": "module",
     "project": "./tsconfig.json"
   },
   "rules": {
-    "no-console": "warn",
-    "@typescript-eslint/indent": ["error", 2],
-    "semi": ["error", "never"]
+    "no-console": "off",
+    "semi": [
+      "error",
+      "never"
+    ],
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off"
   }
 }

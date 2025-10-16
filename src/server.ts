@@ -1,22 +1,22 @@
-import app from "./app";
-import { config } from "dotenv";
+import app from "./app"
+import { config } from "dotenv"
 config();
 
 (() => {
-  const PORT: number | string = process.env.PORT;
+  const PORT: number | string = process.env.PORT
   app
     .listen(PORT, () => {
-      console.log("##########################################################");
-      console.log("#####               STARTING SERVER                  #####");
+      console.log("##########################################################")
+      console.log("#####               STARTING SERVER                  #####")
       console.log(
         "##########################################################\n"
-      );
-      console.log(`Server running → PORT ${PORT}`);
+      )
+      console.log(`Server running → PORT ${PORT}`)
     })
     .on("error", (e) => {
-      console.error(e);
-    });
-})();
+      console.error(e)
+    })
+})()
 
 // Above is a structure OF IIFE - An Immediately Invoked Function Expression, which executed immediately after it is defined. 
 // It is a common pattern used to create a local scope for variables and functions, thereby preventing them from polluting the global scope. 

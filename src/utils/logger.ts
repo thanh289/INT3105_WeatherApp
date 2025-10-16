@@ -1,20 +1,20 @@
-import expressWinston from "express-winston";
-import winston from "winston";
-import dotenv from "dotenv";
-dotenv.config();
+import expressWinston from "express-winston"
+import winston from "winston"
+import dotenv from "dotenv"
+dotenv.config()
 
 const logFormat: winston.Logform.Format = winston.format.printf(
   (info: winston.Logform.TransformableInfo) => {
     if (process.env.NODE_ENV !== "development")
-      return `[${info.timestamp}] ${info.level}: ${info.message}`;
+      return `[${info.timestamp}] ${info.level}: ${info.message}`
     return `[${info.timestamp}] ${JSON.stringify(info.meta)} ${info.level}: ${
       info.message
-    }`;
+    }`
   }
-);
+)
 
-expressWinston.requestWhitelist.push("body");
-expressWinston.responseWhitelist.push("body");
+expressWinston.requestWhitelist.push("body")
+expressWinston.responseWhitelist.push("body")
 
 const logger = expressWinston.logger({
   transports: [ // where to log
@@ -34,6 +34,6 @@ const logger = expressWinston.logger({
   meta: true,
   expressFormat: true,
   colorize: true,
-});
+})
 
-export default logger;
+export default logger

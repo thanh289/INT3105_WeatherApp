@@ -1,4 +1,4 @@
-import { Document, Model, model, Schema } from "mongoose";
+import { Document, Model, model, Schema } from "mongoose"
 
 export interface IWind {
   speed: number;
@@ -61,10 +61,10 @@ const WeatherSchema: Schema = new Schema(
   },
 
   { timestamps: true }
-);
+)
 
 // each document of Weather wil have type IWeather
-export const Weather: Model<IWeather> = model("Weather", WeatherSchema);
+export const Weather: Model<IWeather> = model("Weather", WeatherSchema)
 
 
 // Interface - only exist in TypeScript, just for typecheck, not really effect MongoDB        (IForecast..)

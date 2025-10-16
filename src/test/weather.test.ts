@@ -1,10 +1,10 @@
-import chai from "chai";
-import chaiHttp from "chai-http";
-import app from "../app";
-import { describe } from "mocha";
+import chai from "chai"
+import chaiHttp from "chai-http"
+import app from "../app"
+import { describe } from "mocha"
 
-const should = chai.should();
-chai.use(chaiHttp);
+const should = chai.should()
+chai.use(chaiHttp)
 
 /**
  *  CHECK WRONG ROUTE
@@ -16,11 +16,11 @@ describe("WEATHER REST API - Integration tests", () => {
         .request(app)
         .get("/api/v1/vopak/reset")
         .end((err, res) => {
-          res.should.have.status(404);
-          done();
-        });
-    });
-  });
+          res.should.have.status(404)
+          done()
+        })
+    })
+  })
 
   /**
    *  GET ALL
@@ -32,48 +32,48 @@ describe("WEATHER REST API - Integration tests", () => {
         .request(app)
         .get("/api/v1/vopak")
         .end((err, res) => {
-          res.should.have.status(200);
-          res.body.should.be.a("object");
-          done();
-        });
-    });
-  });
+          res.should.have.status(200)
+          res.body.should.be.a("object")
+          done()
+        })
+    })
+  })
 
 
   /**
    *  GET A SPECIFIC CITY
    */
   describe("GET /api/v1/vopak/weathers", () => {
-    const city: string = "Rotterdam";
+    const city = "Rotterdam"
     it("it should GET temprature of Rotterdam", (done) => {
       chai
         .request(app)
         .get(`/api/v1/vopak/weathers?city=${city}`)
         .end((err, res) => {
-          res.should.have.status(200);
-          res.body.should.be.a("object");
-          done();
-        });
-    });
-  });
+          res.should.have.status(200)
+          res.body.should.be.a("object")
+          done()
+        })
+    })
+  })
 
   /**
    * GET THE AVERAGE TEMPRATURE OF A SPECIFIC CITY
    */
   describe("GET /api/v1/vopak/weathers", () => {
-    const city: string = "Rotterdam";
-    const year: number = 2021;
-    const month: number = 9;
+    const city = "Rotterdam"
+    const year = 2021
+    const month = 9
 
     it("it should GET average temprature of Dhaka for a given month of the year", (done) => {
       chai
         .request(app)
         .get(`/api/v1/vopak/weathers/${city}/${month}/${year}`)
         .end((err, res) => {
-          res.should.have.status(200);
-          res.body.should.be.a("object");
-          done();
-        });
-    });
-  });
-});
+          res.should.have.status(200)
+          res.body.should.be.a("object")
+          done()
+        })
+    })
+  })
+})

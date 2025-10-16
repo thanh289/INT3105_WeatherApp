@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express"
 
 export interface IError {
   status?: number;
@@ -24,7 +24,7 @@ export function notFoundErrorHandler(
       code: 404,
       message: "Not found",
     },
-  });
+  })
 }
 
 /**
@@ -47,5 +47,5 @@ export function errorHandler(
       code: err.code,
       message: err.message,
     },
-  });
+  })
 }

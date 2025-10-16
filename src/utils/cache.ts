@@ -1,11 +1,11 @@
-import { createClient, RedisClient } from "redis";
-import { config } from "dotenv";
-config();
+import { createClient, RedisClient } from "redis"
+import { config } from "dotenv"
+config()
 
 export class Cache {
   private client: RedisClient;
   constructor() {
-    this.connect();
+    this.connect()
   }
   /**
    * Connect to Redis
@@ -15,10 +15,10 @@ export class Cache {
       this.client = createClient({
         host: process.env.REDIS_HOST,
         port: process.env.REDIS_PORT as any,
-      });
-      console.log("Successfully connected to Redis");
+      })
+      console.log("Successfully connected to Redis")
     } catch (err) {
-      console.log(err);
+      console.log(err)
     }
   }
 
@@ -26,7 +26,7 @@ export class Cache {
    * Disconnect from Redis
    */
   public disconnect() {
-    this.client.end(true);
+    this.client.end(true)
   }
 
   /**
@@ -39,14 +39,14 @@ export class Cache {
     return new Promise((resolve, reject) => {
       return this.client.get(key, (err, data) => {
         if (err) {
-          reject(err);
+          reject(err)
         }
 
-        if (data === null) resolve(null);
+        if (data === null) resolve(null)
 
-        return resolve(JSON.parse(data) as T);
-      });
-    });
+        return resolve(JSON.parse(data) as T)
+      })
+    })
   }
 
   /**
@@ -57,8 +57,8 @@ export class Cache {
    */
   public setObject<T>(key: string, obj: T) {
     this.client.set(key, JSON.stringify(obj), (err) => {
-      if (err) console.error(err);
-    });
+      if (err) console.error(err)
+    })
   }
 
   /**
@@ -72,19 +72,19 @@ export class Cache {
     return new Promise((resolve, reject) => {
       return this.client.get(key, async (err, data) => {
         if (err) {
-          reject(err);
+          reject(err)
         }
 
         // Fetch from db and store in cache
         if (data === null) {
-          const fetched = await fn();
-          this.setObject(key, fetched);
-          return resolve(fetched as T);
+          const fetched = await fn()
+          this.setObject(key, fetched)
+          return resolve(fetched as T)
         }
 
-        return resolve(JSON.parse(data) as T);
-      });
-    });
+        return resolve(JSON.parse(data) as T)
+      })
+    })
   }
 
   /**
@@ -93,6 +93,6 @@ export class Cache {
    * @param key Cache key
    */
   public deleteByKey(key: string) {
-    this.client.del(key);
+    this.client.del(key)
   }
 }

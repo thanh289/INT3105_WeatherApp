@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose from "mongoose"
 
 type TInput = {
   db: string;
@@ -10,16 +10,16 @@ export default ({ db }: TInput) => {
     mongoose
       .connect(db, {})  // can pass optional connection in {}
       .then(() => {
-        return console.info("Successfully connected to database");
+        return console.info("Successfully connected to database")
       })
       .catch((error) => {
-        console.error("Error connecting to database: " + error.message);
-        return process.exit(1);
-      });
-  };
-  connectDB();
+        console.error("Error connecting to database: " + error.message)
+        return process.exit(1)
+      })
+  }
+  connectDB()
 
   // if the connection to MongoDB is lost, mongoose will release event "disconnected"
   // and call connectDB() again to reconnect
-  mongoose.connection.on("disconnected", connectDB);
-};
+  mongoose.connection.on("disconnected", connectDB)
+}
