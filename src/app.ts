@@ -1,3 +1,5 @@
+// src/app.ts
+
 import express from "express"
 import cors from "cors"
 import compression from "compression"
@@ -15,8 +17,8 @@ import {
 } from "./middlewars/apiErrorHandler"
 
 export class App {
-  public app: express.Application;
-  public routes: Routes;
+  public app: express.Application
+  public routes: Routes
 
   constructor() {
     this.app = express()
@@ -43,7 +45,10 @@ export class App {
 
   // Need to use async since we have to load the database before doing anything
   public async connectDatabase() {
-    const db: string = process.env.MONGO_URI
+    const db = process.env.MONGO_URI
+    if (!db) {
+      throw new Error("MONGO_URI is not defined in environment variables.")
+    }
     await connectDB({ db })
   }
 }

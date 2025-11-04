@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// src/middlewars/apiErrorHandler.ts
+
 import { Request, Response, NextFunction } from "express"
 
 export interface IError {
@@ -41,11 +44,15 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ) {
-  res.status(err.status).json({
+  const statusCode = err.status || 500
+  const errorCode = err.code || statusCode
+  const errorMessage = err.message || "Internal Server Error"
+
+  res.status(statusCode).json({
     success: false,
     error: {
-      code: err.code,
-      message: err.message,
+      code: errorCode,
+      message: errorMessage,
     },
   })
 }

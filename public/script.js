@@ -1,9 +1,16 @@
+// public/script.js
+
 const baseUrl = "http://localhost:5000/api/v1/vopak";
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btnGetWeathers").addEventListener("click", getWeathers);
   document.getElementById("btnGetCity").addEventListener("click", getWeatherByCity);
   document.getElementById("btnGetAvg").addEventListener("click", getAvgTemp);
-  document.getElementById("btnCreateWeather").addEventListener("click", createWeather);
+
+  // Only add listener if the button exists
+  const btnCreateWeather = document.getElementById("btnCreateWeather");
+  if (btnCreateWeather) {
+    btnCreateWeather.addEventListener("click", createWeather);
+  }
 });
 
 
@@ -44,6 +51,10 @@ async function createWeather() {
     const data = await res.json();
     document.getElementById("createResult").textContent = JSON.stringify(data, null, 2);
   } catch (err) {
-    document.getElementById("createResult").textContent = "❌ Invalid JSON data!";
+    if (err instanceof SyntaxError) {
+      document.getElementById("createResult").textContent = "Invalid JSON data!";
+    } else {
+      document.getElementById("createResult").textContent = `Error: ${err.message}`;
+    }
   }
 }

@@ -1,3 +1,5 @@
+// src/db/connectDB.ts
+
 import mongoose from "mongoose"
 
 type TInput = {

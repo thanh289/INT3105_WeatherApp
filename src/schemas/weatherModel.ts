@@ -1,3 +1,5 @@
+// src/schemas/weatherModel.ts
+
 import { Document, Model, model, Schema } from "mongoose"
 
 export interface IWind {

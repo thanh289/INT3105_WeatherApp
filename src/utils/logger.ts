@@ -1,3 +1,5 @@
+// src/utils/logger.ts
+
 import expressWinston from "express-winston"
 import winston from "winston"
 import dotenv from "dotenv"
@@ -7,9 +9,8 @@ const logFormat: winston.Logform.Format = winston.format.printf(
   (info: winston.Logform.TransformableInfo) => {
     if (process.env.NODE_ENV !== "development")
       return `[${info.timestamp}] ${info.level}: ${info.message}`
-    return `[${info.timestamp}] ${JSON.stringify(info.meta)} ${info.level}: ${
-      info.message
-    }`
+    return `[${info.timestamp}] ${JSON.stringify(info.meta)} ${info.level}: ${info.message
+      }`
   }
 )
 

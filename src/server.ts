@@ -1,9 +1,11 @@
+// src/server.ts
+
 import app from "./app"
 import { config } from "dotenv"
 config();
 
 (() => {
-  const PORT: number | string = process.env.PORT
+  const PORT: number | string = process.env.PORT ?? 3000
   app
     .listen(PORT, () => {
       console.log("##########################################################")
@@ -18,8 +20,8 @@ config();
     })
 })()
 
-// Above is a structure OF IIFE - An Immediately Invoked Function Expression, which executed immediately after it is defined. 
-// It is a common pattern used to create a local scope for variables and functions, thereby preventing them from polluting the global scope. 
+// Above is a structure OF IIFE - An Immediately Invoked Function Expression, which executed immediately after it is defined.
+// It is a common pattern used to create a local scope for variables and functions, thereby preventing them from polluting the global scope.
 // For the above situation, it's fine not to use IIFE, just the coding style of the host
 
 

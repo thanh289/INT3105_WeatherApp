@@ -1,9 +1,11 @@
+// src/routes/weatherRoute.ts
+
 import { Router } from "express"
-import { WeatherController } from "../controllers/weatherController"
+import { WeatherController } from "../controllers/weatherController.js"
 
 class WeatherRoute {
-  public weatherController: WeatherController;
-  public router: Router;
+  public weatherController: WeatherController
+  public router: Router
 
   constructor() {
     this.weatherController = new WeatherController()

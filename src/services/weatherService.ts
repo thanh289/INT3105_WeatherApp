@@ -1,3 +1,5 @@
+// src/services/weatherService.ts
+
 import { Weather, IWeather } from "../schemas/weatherModel"
 import axios from "axios"
 import CircuitBreaker from "opossum"
@@ -5,22 +7,18 @@ import moment from "moment"
 import { config } from "dotenv"
 config()
 
-
-
 class WeatherService {
+  private openWeatherBreaker: CircuitBreaker
 
-  private openWeatherBreaker: CircuitBreaker;
   constructor() {
-
-    // config for CB
+    // Config for Circuit Breaker
     const options = {
-      timeout: 20000,                 // request > ?s -> fail
+      timeout: 20000,                 // request > 20s -> fail
       errorThresholdPercentage: 50,   // 50% request fail -> CB open
       resetTimeout: 10000,            // after 10s (for demo) -> half-open
-      rollingCountTimeout: 30000,     // time for window = 30s,
-      volumeThreshold: 2,             // minium request need to evaluate
+      rollingCountTimeout: 30000,     // time for window = 30s
+      volumeThreshold: 2,             // minimum request need to evaluate
     }
-
 
     this.openWeatherBreaker = new CircuitBreaker(this.fetchWithRetry.bind(this), options)
 
@@ -60,7 +58,7 @@ class WeatherService {
 
     const res = await axios.get(base_url)
     return res.data
-  };
+  }
 
   // Manual retry
   public fetchWithRetry = async (city: string, demoFail?: boolean, retries = 3) => {
@@ -77,23 +75,27 @@ class WeatherService {
         await new Promise((r) => setTimeout(r, 1000 * i))
       }
     }
-  };
+  }
 
   public getWeatherFromAPI = async (city: string, demoFail?: boolean): Promise<any> => {
     try {
       return await this.openWeatherBreaker.fire(city, demoFail)
     } catch (err) {
-      console.error("[CB] API call failed:", err.message)
+      if (err instanceof Error) {
+        console.error("[CB] API call failed:", err.message)
+      } else {
+        console.error("[CB] API call failed with unknown error:", err)
+      }
       throw new Error("OpenWeather API not available currently. Please try again later.")
     }
-  };
+  }
 
   /**
-   *
-   * @param dt
-   * @param limit
-   * @param page
-   * @returns
+   * Get all weathers for a specific date with pagination
+   * @param dt - Date string
+   * @param limit - Number of records per page
+   * @param page - Page number
+   * @returns Array with [documents, total count]
    */
   public getWeathers = async (
     dt: string,
@@ -106,35 +108,51 @@ class WeatherService {
         .limit(limit)
         .skip(limit * page - limit)
         .exec(),
-      // Weather.countDocuments().exec(),
       Weather.countDocuments({ dt }).exec(),
     ]
 
-    // all promises in array run parallel, return when all done
+    // All promises in array run parallel, return when all done
     return await Promise.all(promises)
-  };
+  }
 
   /**
-   *
-   * @param dt
-   * @param city
-   * @returns
+   * Get weather from database (doesn't throw error if not found)
+   * @param dt - Date string
+   * @param city - City name
+   * @returns Weather document or null
    */
-  public getWeather = async (dt: string, city: string): Promise<IWeather> => {
-    return await Weather.findOne({
-      // string contain 'city', i for ignore case (upper or lower)
+  public getWeatherFromDB = async (dt: string, city: string): Promise<IWeather | null> => {
+    const weather = await Weather.findOne({
+      // String contains 'city', i for ignore case (upper or lower)
       city: { $regex: city, $options: "i" },
       dt,
-    }).exec()  // query and return Promise
+    }).exec()
 
-  };
+    return weather
+  }
 
   /**
-   *
-   * @param city
-   * @param start
-   * @param end
-   * @returns
+   * Get weather (throws error if not found - for backwards compatibility)
+   * @param dt - Date string
+   * @param city - City name
+   * @returns Weather document
+   */
+  public getWeather = async (dt: string, city: string): Promise<IWeather> => {
+    const weather = await this.getWeatherFromDB(dt, city)
+
+    if (!weather) {
+      throw new Error(`Weather data for ${city} on ${dt} not found.`)
+    }
+
+    return weather
+  }
+
+  /**
+   * Get average temperature for a city in a date range
+   * @param city - City name
+   * @param start - Start date
+   * @param end - End date
+   * @returns Array with aggregated data
    */
   public getAvgTemp = async (
     city: string,
@@ -152,24 +170,22 @@ class WeatherService {
       },
       {
         $group: {
-          _id: "$city", // need id for group
+          _id: "$city", // Need id for group
           city: { $first: "$city" },
           avgTemp: { $avg: "$forecast.temp" },
         },
       },
     ])
-  };
+  }
 
   /**
-   *
-   * @param payload
-   * @returns
+   * Create a new weather record
+   * @param payload - Weather data
+   * @returns Created weather document
    */
   public createWeather = async (payload: any): Promise<IWeather> => {
     return Weather.create(payload)
-  };
-
-
+  }
 }
 
 export { WeatherService }

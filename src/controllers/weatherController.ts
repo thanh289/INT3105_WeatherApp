@@ -1,10 +1,13 @@
+// src/controllers/weatherController.ts
+
 import { Request, Response } from "express"
 import { WeatherService } from "../services/weatherService"
-
 import moment from "moment"
+
 class WeatherController {
-  public weatherService: WeatherService;
-  public dt: any;
+  public weatherService: WeatherService
+  public dt: any
+
   constructor() {
     this.weatherService = new WeatherService()
     this.dt = moment().format("YYYY-MM-DD")
@@ -17,7 +20,6 @@ class WeatherController {
    * @param res
    * @returns http response
    */
-
   public getWeathers = async (req: Request, res: Response) => {
     try {
       let limit = 20
@@ -37,7 +39,7 @@ class WeatherController {
         page
       )
 
-      if (response) {
+      if (response && response[0]) {
         return res.status(200).send({
           message: "success",
           payload: response[0],
@@ -51,11 +53,12 @@ class WeatherController {
           .send({ message: "No record found in the database" })
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
       res.status(500).send({
-        message: "Error occured while retriving  the data " + err.message,
+        message: "Error occured while retriving the data " + errorMessage,
       })
     }
-  };
+  }
 
   /**
    * Get weather of a specific city of present date
@@ -63,7 +66,6 @@ class WeatherController {
    * @param res
    * @returns http response
    */
-
   public getWeather = async (req: Request, res: Response) => {
     try {
       if (!req.query.city || typeof req.query.city !== "string") {
@@ -72,105 +74,115 @@ class WeatherController {
       const city: string = req.query.city.trim().toLowerCase()
       const demoFail = req.query.demoFail === "true"
 
-      //first going to check whether data is already exists or not
-      const isExists = await this.weatherService.getWeather(this.dt, city)
+      // First check if data already exists in DB
+      const isExists = await this.weatherService.getWeatherFromDB(this.dt, city)
 
       if (isExists) {
         console.log(`[DB] Found weather for city "${city}" on date ${this.dt}`)
         return res.status(200).send({ message: "success (from DB)", payload: isExists })
+      }
+
+      console.log(`[DB] No cached data for "${city}", fetching from API...`)
+
+      // Fetch from OpenWeather API
+      console.log(`[API] Fetching weather for city "${city}" from OpenWeather API...`)
+      const response = await this.weatherService.getWeatherFromAPI(city, demoFail)
+
+      // Check fallback
+      if (response.message && response.message.includes("unavailable")) {
+        return res.status(503).send({ message: response.message, payload: response })
+      }
+
+      // Extract data from the response
+      const country: string = response.sys.country
+      const dt = moment.unix(response.dt).utcOffset(response.timezone / 60).format("YYYY-MM-DD")
+      const temp: number = response.main.temp
+      const pressure: number = response.main.pressure
+      const minTemp: number = response.main.temp_min
+      const maxTemp: number = response.main.temp_max
+      const humidity: number = response.main.humidity
+      const sunrise: number = response.sys.sunrise
+      const sunset: number = response.sys.sunset
+      const type: string = response.weather[0].main
+
+      const coord: object = response.coord
+      const wind: object = response.wind
+
+      // Create object as per MongoDB schema
+      const data = {
+        forecast: {
+          type,
+          temp,
+          minTemp,
+          maxTemp,
+          pressure,
+          humidity,
+          sunrise,
+          sunset,
+          wind,
+        },
+        coord,
+        city,
+        country,
+        dt,
+      }
+
+      const result = await this.weatherService.createWeather(data)
+
+      if (result) {
+        return res.status(200).send({ message: "success (from API)", payload: result })
       } else {
-        //Now fetching weather information from OpenWeather based on CITY
-        console.log(`[API] Fetching weather for city "${city}" from OpenWeather API...`)
-        const response = await this.weatherService.getWeatherFromAPI(city, demoFail)
-
-        // Check fallback
-        if (response.message) {
-          return res.status(503).send({ message: response.message, payload: response })
-        }
-
-        //Extracting data from the response
-        const country: string = response.sys.country
-        const dt = moment.unix(response.dt).utcOffset(response.timezone / 60).format("YYYY-MM-DD")
-        const temp: number = response.main.temp
-        const pressure: number = response.main.pressure
-        const minTemp: number = response.main.temp_min
-        const maxTemp: number = response.main.temp_max
-        const humidity: number = response.main.humidity
-        const sunrise: number = response.sys.sunrise
-        const sunset: number = response.sys.sunset
-        const type: string = response.weather[0].main
-
-        const coord: object = response.coord
-        const wind: object = response.wind
-
-        //creating the object as per mongoDB schema
-
-        const data = {
-          forecast: {
-            type,
-            temp,
-            minTemp,
-            maxTemp,
-            pressure,
-            humidity,
-            sunrise,
-            sunset,
-            wind,
-          },
-
-          coord,
-          city,
-          country,
-          dt,
-        }
-
-        const result = await this.weatherService.createWeather(data)
-
-        if (result) {
-          return res.status(200).send({ message: "success (from API)", payload: result })
-        } else {
-          return res
-            .status(404)
-            .send({ message: `No record found with this id = ${city}` })
-        }
+        return res
+          .status(404)
+          .send({ message: `No record found with this id = ${city}` })
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
+      console.error('[Controller Error]', errorMessage)
       res.status(500).send({
-        message: "Error occured while retriving  the data " + err.message,
+        message: "Error occured while retriving the data: " + errorMessage,
       })
     }
-  };
+  }
 
   /**
-   * GET average tempreture of a location based on for a given month of the year
+   * GET average temperature of a location for a given month of the year
    * @param req
    * @param res
-   * @returns  http response
+   * @returns http response
    */
-
   public getAvgTemp = async (req: Request, res: Response) => {
     try {
       const city: string = req.params.city
       const year: number = parseInt(req.params.year)
       const month: number = parseInt(req.params.month)
+
+      if (!city || isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).send({
+          message: "Invalid parameters. City, valid month (1-12), and year are required"
+        })
+      }
+
       const start = moment({ year, month: month - 1, day: 1 }).format("YYYY-MM-DD")
-      const end = moment(start).endOf("month").format("YYYY-MM-DD")  
+      const end = moment(start).endOf("month").format("YYYY-MM-DD")
 
       const response = await this.weatherService.getAvgTemp(city, start, end)
       console.log(response)
-      if (response) {
+
+      if (response && response.length > 0) {
         return res.status(200).send({ message: "success", payload: response })
       } else {
         return res
           .status(404)
-          .send({ message: "No record found in the database" })
+          .send({ message: "No record found in the database for the specified period" })
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
       res.status(500).send({
-        message: "Error occured while retriving  the data " + err.message,
+        message: "Error occured while retrieving the data: " + errorMessage,
       })
     }
-  };
+  }
 
   /**
    * POST weather
@@ -178,23 +190,23 @@ class WeatherController {
    * @param res
    * @returns http response
    */
-
   public createWeather = async (req: Request, res: Response) => {
     try {
       const response = await this.weatherService.createWeather(req.body)
       if (response) {
         return res.status(201).send({ message: "success", payload: response })
       } else {
-        return res.status(201).send({
+        return res.status(400).send({
           message: "Error occured while saving the data",
         })
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
       res.status(500).send({
-        message: "Error occured while saving the data " + err.message,
+        message: "Error occured while saving the data: " + errorMessage,
       })
     }
-  };
+  }
 }
 
 export { WeatherController }
