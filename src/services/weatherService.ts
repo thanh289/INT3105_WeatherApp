@@ -14,10 +14,10 @@ class WeatherService {
     // Config for Circuit Breaker
     const options = {
       timeout: 20000,                 // request > 20s -> fail
-      errorThresholdPercentage: 50,   // 50% request fail -> CB open
-      resetTimeout: 10000,            // after 10s (for demo) -> half-open
+      errorThresholdPercentage: 60,   // 60% request fail -> CB open
+      resetTimeout: 5000,             // after 5s (for demo) -> half-open
       rollingCountTimeout: 30000,     // time for window = 30s
-      volumeThreshold: 2,             // minimum request need to evaluate
+      volumeThreshold: 3,             // minimum request need to evaluate during the time of window
     }
 
     this.openWeatherBreaker = new CircuitBreaker(this.fetchWithRetry.bind(this), options)
