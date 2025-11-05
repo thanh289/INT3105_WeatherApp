@@ -11,7 +11,9 @@ import { WeatherProviderFactory } from "./providers/WeatherProviderFactory"
 import { IProviderWeatherData } from "./providers/IWeatherProvider"
 
 class WeatherService {
-  private CBreaker: CircuitBreaker
+  private openWeatherCB: CircuitBreaker
+  private weatherApiCB: CircuitBreaker
+  private circuitBreakers: Map<string, CircuitBreaker>
 
   constructor() {
     // Config for Circuit Breaker
@@ -23,35 +25,48 @@ class WeatherService {
       volumeThreshold: 3,             // minimum request need to evaluate during the time of window
     }
 
-    this.CBreaker = new CircuitBreaker(this.fetchWithRetry.bind(this), options)
+    // Create separate CB for each provider
+    this.openWeatherCB = new CircuitBreaker(
+      (city: string, demoFail?: boolean) => this.fetchFromProvider(city, demoFail, "openweather"),
+      { ...options, name: "OpenWeatherCB" }
+    )
 
-    this.CBreaker.fallback(async (city: string) => {
-      console.warn(`[CB] Fallback triggered for city "${city}"`)
-      return {
-        forecast: {
-          type: null,
-          temp: null,
-          minTemp: null,
-          maxTemp: null,
-          pressure: null,
-          humidity: null,
-          sunrise: null,
-          sunset: null,
-          wind: { speed: null, deg: null },
-        },
-        coord: { lon: null, lat: null },
-        city,
-        country: null,
-        dt: moment().format("YYYY-MM-DD"),
-        message: "Weather API temporarily unavailable",
-      }
+    this.weatherApiCB = new CircuitBreaker(
+      (city: string, demoFail?: boolean) => this.fetchFromProvider(city, demoFail, "weatherapi"),
+      { ...options, name: "WeatherApiCB" }
+    )
+
+    // Store in map for easy access
+    this.circuitBreakers = new Map([
+      ["openweather", this.openWeatherCB],
+      ["weatherapi", this.weatherApiCB],
+    ])
+
+    // Setup event listeners for each CB
+    this.setupCircuitBreakerEvents(this.openWeatherCB, "OpenWeather")
+    this.setupCircuitBreakerEvents(this.weatherApiCB, "WeatherAPI")
+
+    // Setup fallback for each CB
+    this.openWeatherCB.fallback(async (city: string) => {
+      console.warn(`[CB-OpenWeather] Fallback triggered for city "${city}"`)
+      throw new Error("OpenWeather circuit breaker open")
     })
 
-    this.CBreaker.on("open", () => console.warn("[CB] Circuit opened!"))
-    this.CBreaker.on("halfOpen", () => console.info("[CB] Circuit half-open, test API"))
-    this.CBreaker.on("close", () => console.info("[CB] Circuit closed, API OK"))
+    this.weatherApiCB.fallback(async (city: string) => {
+      console.warn(`[CB-WeatherAPI] Fallback triggered for city "${city}"`)
+      throw new Error("WeatherAPI circuit breaker open")
+    })
   }
 
+  /**
+   * Setup event listeners for a circuit breaker
+   */
+  private setupCircuitBreakerEvents(cb: CircuitBreaker, providerName: string) {
+    cb.on("open", () => console.warn(`[CB-${providerName}] Circuit opened!`))
+    cb.on("halfOpen", () => console.info(`[CB-${providerName}] Circuit half-open, testing API`))
+    cb.on("close", () => console.info(`[CB-${providerName}] Circuit closed, API OK`))
+    cb.on("fallback", () => console.warn(`[CB-${providerName}] Fallback executed`))
+  }
 
   /**
    * Wrapper used by circuit breaker. It will:
@@ -59,11 +74,11 @@ class WeatherService {
    *  - obtain provider from factory
    *  - call provider.getWeather and map provider data into the shape your controller expects
    */
-  public fetchWithRetry = async (city: string, demoFail?: boolean, providerName?: string, retries = 3) => {
+  public fetchFromProvider = async (city: string, demoFail?: boolean, providerName?: string, retries = 3) => {
     for (let i = 1; i <= retries; i++) {
       try {
         console.log(`[Retry] Attempt ${i} for city "${city}" (provider=${providerName ?? "openweather"})`)
-        if (demoFail) {
+        if (demoFail && providerName === "openweather") {
           throw new Error(`[Demo] Simulating API failure on attempt ${i} for city "${city}"`)
         }
 
@@ -99,6 +114,7 @@ class WeatherService {
           _providerRaw: providerData.raw ?? null,
         }
 
+        console.log(`[Success] Got weather from ${providerName} for "${city}"`)
         return adapted
 
       } catch (err: any) {
@@ -116,35 +132,72 @@ class WeatherService {
   public getWeatherFromAPI = async (city: string, demoFail?: boolean, providerName?: string): Promise<any> => {
 
     const providerOrder = providerName
-      ? [providerName, "openweather", "weatherapi"]
+      ? [providerName, "openweather", "weatherapi"].filter(
+        (p, i, arr) => arr.indexOf(p) === i
+      ) // Remove duplicates
       : ["openweather", "weatherapi"]
 
-    const tried: string[] = []
+    // let lastError: Error | null = null
+
 
     for (const provider of providerOrder) {
-      if (tried.includes(provider)) continue // skip duplicates
-      tried.push(provider)
-
       try {
         console.log(`[Service] Trying provider "${provider}" for city "${city}"`)
-        return await this.CBreaker.fire(city, demoFail, provider)
+        const cb = this.circuitBreakers.get(provider)
+        if (!cb) {
+          console.warn(`[Service] No circuit breaker found for provider "${provider}"`)
+          continue
+        }
+
+        // Fire the circuit breaker for this specific provider
+        const result = await cb.fire(city, demoFail)
+        return result // Success!
+
       } catch (err) {
         if (err instanceof Error) {
           console.warn(`[Service] Provider "${provider}" failed: ${err.message}`)
+          // lastError = err
         } else {
-          console.warn("[CB] API call failed with unknown error:", err)
+          console.warn(`[Service] Provider "${provider}" failed with unknown error:`, err)
+          // lastError = new Error("Unknown error")
         }
-
-        if (provider === providerOrder.at(-1)) {
-          console.error("[Service] All providers failed!")
-          throw new Error("All weather providers are unavailable. Please try again later.")
-        }
+        // Continue to next provider
       }
 
     }
-
-
+    // All providers failed - return fallback response
+    console.error("[Service] All providers failed, returning fallback")
+    return this.getFallbackResponse(city)
   }
+
+  /**
+   * Generate fallback response when all providers fail
+   */
+  private getFallbackResponse(city: string) {
+    return {
+      forecast: {
+        type: null,
+        temp: null,
+        minTemp: null,
+        maxTemp: null,
+        pressure: null,
+        humidity: null,
+        sunrise: null,
+        sunset: null,
+        wind: { speed: null, deg: null },
+      },
+      coord: { lon: null, lat: null },
+      city,
+      country: null,
+      dt: moment().format("YYYY-MM-DD"),
+      sys: { country: null, sunrise: null, sunset: null },
+      main: { temp: null, pressure: null, temp_min: null, temp_max: null, humidity: null },
+      wind: { speed: null, deg: null },
+      weather: [{ main: null }],
+      message: "All weather providers temporarily unavailable. Please try again later.",
+    }
+  }
+
 
   /**
    * Get all weathers for a specific date with pagination
