@@ -1,14 +1,17 @@
 // src/services/weatherService.ts
 
 import { Weather, IWeather } from "../schemas/weatherModel"
-import axios from "axios"
+// import axios from "axios"
 import CircuitBreaker from "opossum"
 import moment from "moment"
 import { config } from "dotenv"
 config()
 
+import { WeatherProviderFactory } from "./providers/WeatherProviderFactory"
+import { IProviderWeatherData } from "./providers/IWeatherProvider"
+
 class WeatherService {
-  private openWeatherBreaker: CircuitBreaker
+  private CBreaker: CircuitBreaker
 
   constructor() {
     // Config for Circuit Breaker
@@ -20,9 +23,9 @@ class WeatherService {
       volumeThreshold: 3,             // minimum request need to evaluate during the time of window
     }
 
-    this.openWeatherBreaker = new CircuitBreaker(this.fetchWithRetry.bind(this), options)
+    this.CBreaker = new CircuitBreaker(this.fetchWithRetry.bind(this), options)
 
-    this.openWeatherBreaker.fallback(async (city: string) => {
+    this.CBreaker.fallback(async (city: string) => {
       console.warn(`[CB] Fallback triggered for city "${city}"`)
       return {
         forecast: {
@@ -44,31 +47,60 @@ class WeatherService {
       }
     })
 
-    this.openWeatherBreaker.on("open", () => console.warn("[CB] Circuit opened!"))
-    this.openWeatherBreaker.on("halfOpen", () => console.info("[CB] Circuit half-open, test API"))
-    this.openWeatherBreaker.on("close", () => console.info("[CB] Circuit closed, API OK"))
+    this.CBreaker.on("open", () => console.warn("[CB] Circuit opened!"))
+    this.CBreaker.on("halfOpen", () => console.info("[CB] Circuit half-open, test API"))
+    this.CBreaker.on("close", () => console.info("[CB] Circuit closed, API OK"))
   }
 
-  public getDataFromOpenWeatherAPI = async (city: string): Promise<any> => {
-    const base_url: string =
-      process.env.WEATHER_API +
-      `?q=${city}` +
-      "&units=metric&appid=" +
-      `${process.env.APP_ID}`
 
-    const res = await axios.get(base_url)
-    return res.data
-  }
-
-  // Manual retry
-  public fetchWithRetry = async (city: string, demoFail?: boolean, retries = 3) => {
+  /**
+   * Wrapper used by circuit breaker. It will:
+   *  - optionally simulate failure when demoFail=true
+   *  - obtain provider from factory
+   *  - call provider.getWeather and map provider data into the shape your controller expects
+   */
+  public fetchWithRetry = async (city: string, demoFail?: boolean, providerName?: string, retries = 3) => {
     for (let i = 1; i <= retries; i++) {
       try {
-        console.log(`[Retry] Attempt ${i} for city "${city}"`)
+        console.log(`[Retry] Attempt ${i} for city "${city}" (provider=${providerName ?? "openweather"})`)
         if (demoFail) {
           throw new Error(`[Demo] Simulating API failure on attempt ${i} for city "${city}"`)
         }
-        return await this.getDataFromOpenWeatherAPI(city)
+
+        const provider = WeatherProviderFactory.create(providerName)
+        const providerData: IProviderWeatherData = await provider.getWeather(city)
+
+        const adapted = {
+          sys: {
+            country: providerData.country,
+            sunrise: providerData.sunrise,
+            sunset: providerData.sunset,
+          },
+          dt: Math.floor(Date.now() / 1000), // seconds
+          timezone: 0,
+          main: {
+            temp: providerData.temp,
+            pressure: providerData.pressure,
+            temp_min: providerData.minTemp ?? null,
+            temp_max: providerData.maxTemp ?? null,
+            humidity: providerData.humidity ?? null,
+          },
+          coord: {
+            lon: providerData.coord?.lon ?? null,
+            lat: providerData.coord?.lat ?? null,
+          },
+          wind: {
+            speed: (providerData.raw && providerData.raw.wind && providerData.raw.wind.speed) ?? null,
+            deg: (providerData.raw && providerData.raw.wind && providerData.raw.wind.deg) ?? null,
+          },
+          weather: [{ main: providerData.raw && providerData.raw.weather && providerData.raw.weather[0] ? providerData.raw.weather[0].main : null }],
+          name: providerData.name ?? city,
+
+          _providerRaw: providerData.raw ?? null,
+        }
+
+        return adapted
+
       } catch (err: any) {
         console.warn(`[Retry] Attempt ${i} failed: ${err.message}`)
         if (i === retries) throw err
@@ -77,17 +109,41 @@ class WeatherService {
     }
   }
 
-  public getWeatherFromAPI = async (city: string, demoFail?: boolean): Promise<any> => {
-    try {
-      return await this.openWeatherBreaker.fire(city, demoFail)
-    } catch (err) {
-      if (err instanceof Error) {
-        console.error("[CB] API call failed:", err.message)
-      } else {
-        console.error("[CB] API call failed with unknown error:", err)
+  /**
+   * Public method used by controller to get weather from API (via CB)
+   * Includes automatic fallback: if primary provider fails, try next one.
+   */
+  public getWeatherFromAPI = async (city: string, demoFail?: boolean, providerName?: string): Promise<any> => {
+
+    const providerOrder = providerName
+      ? [providerName, "openweather", "weatherapi"]
+      : ["openweather", "weatherapi"]
+
+    const tried: string[] = []
+
+    for (const provider of providerOrder) {
+      if (tried.includes(provider)) continue // skip duplicates
+      tried.push(provider)
+
+      try {
+        console.log(`[Service] Trying provider "${provider}" for city "${city}"`)
+        return await this.CBreaker.fire(city, demoFail, provider)
+      } catch (err) {
+        if (err instanceof Error) {
+          console.warn(`[Service] Provider "${provider}" failed: ${err.message}`)
+        } else {
+          console.warn("[CB] API call failed with unknown error:", err)
+        }
+
+        if (provider === providerOrder.at(-1)) {
+          console.error("[Service] All providers failed!")
+          throw new Error("All weather providers are unavailable. Please try again later.")
+        }
       }
-      throw new Error("OpenWeather API not available currently. Please try again later.")
+
     }
+
+
   }
 
   /**

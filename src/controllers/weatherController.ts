@@ -85,8 +85,9 @@ class WeatherController {
       console.log(`[DB] No cached data for "${city}", fetching from API...`)
 
       // Fetch from OpenWeather API
-      console.log(`[API] Fetching weather for city "${city}" from OpenWeather API...`)
-      const response = await this.weatherService.getWeatherFromAPI(city, demoFail)
+      const provider = (req.query.provider as string) || "openweather"
+      console.log(`[API] Fetching weather for city "${city}" from provider ${provider}...`)
+      const response = await this.weatherService.getWeatherFromAPI(city, demoFail, provider)
 
       // Check fallback
       if (response.message && response.message.includes("unavailable")) {
