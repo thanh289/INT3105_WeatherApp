@@ -3,6 +3,7 @@
 import { Request, Response } from "express"
 import { WeatherService } from "../services/weatherService"
 import moment from "moment"
+import { WeatherStrategyFactory } from "services/strategies/WeatherStrategyFactory"
 
 class WeatherController {
   public weatherService: WeatherService
@@ -71,80 +72,83 @@ class WeatherController {
       if (!req.query.city || typeof req.query.city !== "string") {
         return res.status(400).send({ message: "City is required and must be a string" })
       }
+
       const city: string = req.query.city.trim().toLowerCase()
       const demoFail = req.query.demoFail === "true"
+      const strategyName = (req.query.strategy as string) || "reliable"
 
-      // First check if data already exists in DB
-      const isExists = await this.weatherService.getWeatherFromDB(this.dt, city)
+      console.log(`[Controller] Fetching weather for "${city}" using strategy "${strategyName}"`)
 
-      if (isExists) {
-        console.log(`[DB] Found weather for city "${city}" on date ${this.dt}`)
-        return res.status(200).send({ message: "success (from DB)", payload: isExists })
-      }
+      // Create strategy based on user's choice
+      const strategy = WeatherStrategyFactory.create(strategyName)
 
-      console.log(`[DB] No cached data for "${city}", fetching from API...`)
+      // Execute the strategy
+      const response = await strategy.execute(city, demoFail)
 
-      // Fetch from OpenWeather API
-      const provider = (req.query.provider as string) || "openweather"
-      console.log(`[API] Fetching weather for city "${city}" from provider ${provider}...`)
-      const response = await this.weatherService.getWeatherFromAPI(city, demoFail, provider)
-
-      // Check fallback
+      // Check if it's a fallback response
       if (response.message && response.message.includes("unavailable")) {
-        return res.status(503).send({ message: response.message, payload: response })
+        return res.status(503).send({
+          message: `Weather data unavailable (strategy: ${strategyName})`,
+          payload: response
+        })
       }
 
-      // Extract data from the response
-      const country: string = response.sys.country
-      const dt = moment.unix(response.dt).utcOffset(response.timezone / 60).format("YYYY-MM-DD")
-      const temp: number = response.main.temp
-      const pressure: number = response.main.pressure
-      const minTemp: number = response.main.temp_min
-      const maxTemp: number = response.main.temp_max
-      const humidity: number = response.main.humidity
-      const sunrise: number = response.sys.sunrise
-      const sunset: number = response.sys.sunset
-      const type: string = response.weather[0].main
+      // Extract data for DB storage (only if from API, not from cache)
+      if (response._strategy !== "cached" || !response._cacheHit) {
+        const country: string = response.sys.country
+        const dt = moment.unix(response.dt).format("YYYY-MM-DD")
+        const temp: number = response.main.temp
+        const pressure: number = response.main.pressure
+        const minTemp: number = response.main.temp_min
+        const maxTemp: number = response.main.temp_max
+        const humidity: number = response.main.humidity
+        const sunrise: number = response.sys.sunrise
+        const sunset: number = response.sys.sunset
+        const type: string = response.weather[0].main
 
-      const coord: object = response.coord
-      const wind: object = response.wind
+        const coord: object = response.coord
+        const wind: object = response.wind
 
-      // Create object as per MongoDB schema
-      const data = {
-        forecast: {
-          type,
-          temp,
-          minTemp,
-          maxTemp,
-          pressure,
-          humidity,
-          sunrise,
-          sunset,
-          wind,
-        },
-        coord,
-        city,
-        country,
-        dt,
+        // Save to DB (skip if already cached)
+        if (response._strategy !== "cached") {
+          const data = {
+            forecast: {
+              type,
+              temp,
+              minTemp,
+              maxTemp,
+              pressure,
+              humidity,
+              sunrise,
+              sunset,
+              wind,
+            },
+            coord,
+            city,
+            country,
+            dt,
+          }
+
+          await this.weatherService.createWeather(data)
+          console.log(`[Controller] Saved weather data for "${city}" to database`)
+        }
       }
 
-      const result = await this.weatherService.createWeather(data)
+      return res.status(200).send({
+        message: `success (strategy: ${strategyName})`,
+        payload: response
+      })
 
-      if (result) {
-        return res.status(200).send({ message: "success (from API)", payload: result })
-      } else {
-        return res
-          .status(404)
-          .send({ message: `No record found with this id = ${city}` })
-      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
       console.error('[Controller Error]', errorMessage)
       res.status(500).send({
-        message: "Error occured while retriving the data: " + errorMessage,
+        message: "Error occurred while retrieving the data: " + errorMessage,
       })
     }
   }
+
+
 
   /**
    * GET average temperature of a location for a given month of the year
@@ -184,6 +188,8 @@ class WeatherController {
       })
     }
   }
+
+
 
   /**
    * POST weather

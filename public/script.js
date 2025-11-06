@@ -1,60 +1,98 @@
 // public/script.js
 
 const baseUrl = "http://localhost:5000/api/v1/vopak";
+
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btnGetWeathers").addEventListener("click", getWeathers);
   document.getElementById("btnGetCity").addEventListener("click", getWeatherByCity);
   document.getElementById("btnGetAvg").addEventListener("click", getAvgTemp);
 
-  // Only add listener if the button exists
-  const btnCreateWeather = document.getElementById("btnCreateWeather");
-  if (btnCreateWeather) {
-    btnCreateWeather.addEventListener("click", createWeather);
-  }
+  // Show strategy description when selection changes
+  document.getElementById("strategy").addEventListener("change", updateStrategyInfo);
+  updateStrategyInfo(); // Show initial info
 });
 
+function updateStrategyInfo() {
+  const strategy = document.getElementById("strategy").value;
+  const infoBox = document.getElementById("strategyInfo");
+
+  const descriptions = {
+    reliable: "🛡️ <strong>Reliable Strategy:</strong> Uses multiple weather providers (OpenWeather → WeatherAPI) with retry logic (3 attempts each) and circuit breaker protection. Best for production when you need guaranteed data.",
+    fast: "⚡ <strong>Fast Strategy:</strong> Uses only OpenWeather API with no retries. Fails fast if the API is down. Best when speed is critical and you can handle failures.",
+    cached: "💾 <strong>Cached Strategy:</strong> Checks database first for today's data. Only calls API if data is not cached. Best for minimizing API costs and improving response time."
+  };
+
+  infoBox.innerHTML = descriptions[strategy];
+}
 
 async function getWeathers() {
-  const limit = document.getElementById("limit").value;
-  const page = document.getElementById("page").value;
-  // request to backend by fetch()
-  const res = await fetch(`${baseUrl}/?limit=${limit}&page=${page}`);
-  const data = await res.json();
-  document.getElementById("allWeathers").textContent = JSON.stringify(data, null, 2);
+  try {
+    const limit = document.getElementById("limit").value;
+    const page = document.getElementById("page").value;
+
+    document.getElementById("allWeathers").textContent = "Loading...";
+
+    const res = await fetch(`${baseUrl}/?limit=${limit}&page=${page}`);
+    const data = await res.json();
+
+    document.getElementById("allWeathers").textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    document.getElementById("allWeathers").textContent = `Error: ${err.message}`;
+  }
 }
 
 async function getWeatherByCity() {
-  const city = document.getElementById("cityName").value;
-  const demoCB = document.getElementById("demoCB").checked;
-  const res = await fetch(`${baseUrl}/weathers?city=${city}${demoCB ? "&demoFail=true" : ""}`);
-  const data = await res.json();
-  document.getElementById("cityWeather").textContent = JSON.stringify(data, null, 2);
+  try {
+    const city = document.getElementById("cityName").value.trim();
+    if (!city) {
+      alert("Please enter a city name");
+      return;
+    }
+
+    const strategy = document.getElementById("strategy").value;
+    const demoCB = document.getElementById("demoCB").checked;
+
+    document.getElementById("cityWeather").textContent = "Loading...";
+
+    const url = `${baseUrl}/weathers?city=${encodeURIComponent(city)}&strategy=${strategy}${demoCB ? "&demoFail=true" : ""}`;
+    console.log("Fetching:", url);
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    // Highlight important info
+    let displayText = JSON.stringify(data, null, 2);
+    if (data.payload?._strategy) {
+      displayText = `Strategy Used: ${data.payload._strategy}\n` +
+        `Provider: ${data.payload._provider || 'N/A'}\n` +
+        `Cache Hit: ${data.payload._cacheHit ? 'Yes' : 'No'}\n\n` +
+        displayText;
+    }
+
+    document.getElementById("cityWeather").textContent = displayText;
+  } catch (err) {
+    document.getElementById("cityWeather").textContent = `Error: ${err.message}`;
+  }
 }
 
 async function getAvgTemp() {
-  const city = document.getElementById("avgCity").value;
-  const month = document.getElementById("avgMonth").value;
-  const year = document.getElementById("avgYear").value;
-  const res = await fetch(`${baseUrl}/weathers/${city}/${month}/${year}`);
-  const data = await res.json();
-  document.getElementById("avgTemp").textContent = JSON.stringify(data, null, 2);
-}
-
-async function createWeather() {
   try {
-    const jsonData = JSON.parse(document.getElementById("weatherData").value);
-    const res = await fetch(`${baseUrl}/weathers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(jsonData),
-    });
-    const data = await res.json();
-    document.getElementById("createResult").textContent = JSON.stringify(data, null, 2);
-  } catch (err) {
-    if (err instanceof SyntaxError) {
-      document.getElementById("createResult").textContent = "Invalid JSON data!";
-    } else {
-      document.getElementById("createResult").textContent = `Error: ${err.message}`;
+    const city = document.getElementById("avgCity").value.trim();
+    const month = document.getElementById("avgMonth").value;
+    const year = document.getElementById("avgYear").value;
+
+    if (!city || !month || !year) {
+      alert("Please fill in all fields");
+      return;
     }
+
+    document.getElementById("avgTemp").textContent = "Loading...";
+
+    const res = await fetch(`${baseUrl}/weathers/${encodeURIComponent(city)}/${month}/${year}`);
+    const data = await res.json();
+
+    document.getElementById("avgTemp").textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    document.getElementById("avgTemp").textContent = `Error: ${err.message}`;
   }
 }
